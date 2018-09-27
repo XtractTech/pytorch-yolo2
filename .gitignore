@@ -6,3 +6,6 @@
 *.o
 *.so
 backup/
+weights/
+VOCdevkit/
+backup_drone/
