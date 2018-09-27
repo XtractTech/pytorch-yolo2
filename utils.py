@@ -20,6 +20,7 @@ def softmax(x):
 
 
 def bbox_iou(box1, box2, x1y1x2y2=True):
+    
     if x1y1x2y2:
         mx = min(box1[0], box2[0])
         Mx = max(box1[2], box2[2])
@@ -30,6 +31,8 @@ def bbox_iou(box1, box2, x1y1x2y2=True):
         w2 = box2[2] - box2[0]
         h2 = box2[3] - box2[1]
     else:
+        box1 = torch.from_numpy(np.array(box1)).double()
+        box2 = torch.from_numpy(np.array(box2)).double()
         mx = min(box1[0]-box1[2]/2.0, box2[0]-box2[2]/2.0)
         Mx = max(box1[0]+box1[2]/2.0, box2[0]+box2[2]/2.0)
         my = min(box1[1]-box1[3]/2.0, box2[1]-box2[3]/2.0)
@@ -40,16 +43,18 @@ def bbox_iou(box1, box2, x1y1x2y2=True):
         h2 = box2[3]
     uw = Mx - mx
     uh = My - my
-    cw = w1 + w2 - uw
-    ch = h1 + h2 - uh
+    cw = w1 + w2 - np.float64(uw)
+    ch = h1 + h2 - np.float64(uh)
     carea = 0
     if cw <= 0 or ch <= 0:
+        # print(cw,ch)
         return 0.0
-
     area1 = w1 * h1
     area2 = w2 * h2
     carea = cw * ch
     uarea = area1 + area2 - carea
+    # print(carea/uarea)
+    # return 0.0
     return carea/uarea
 
 def bbox_ious(boxes1, boxes2, x1y1x2y2=True):
@@ -111,7 +116,7 @@ def convert2cpu_long(gpu_matrix):
     return torch.LongTensor(gpu_matrix.size()).copy_(gpu_matrix)
 
 def get_region_boxes(output, conf_thresh, num_classes, anchors, num_anchors, only_objectness=1, validation=False):
-    anchor_step = len(anchors)/num_anchors
+    anchor_step = len(anchors)//num_anchors
     if output.dim() == 3:
         output = output.unsqueeze(0)
     batch = output.size(0)
@@ -127,7 +132,6 @@ def get_region_boxes(output, conf_thresh, num_classes, anchors, num_anchors, onl
     grid_y = torch.linspace(0, h-1, h).repeat(w,1).t().repeat(batch*num_anchors, 1, 1).view(batch*num_anchors*h*w).cuda()
     xs = torch.sigmoid(output[0]) + grid_x
     ys = torch.sigmoid(output[1]) + grid_y
-
     anchor_w = torch.Tensor(anchors).view(num_anchors, anchor_step).index_select(1, torch.LongTensor([0]))
     anchor_h = torch.Tensor(anchors).view(num_anchors, anchor_step).index_select(1, torch.LongTensor([1]))
     anchor_w = anchor_w.repeat(batch, 1).repeat(1, 1, h*w).view(batch*num_anchors*h*w).cuda()
@@ -277,7 +281,7 @@ def read_truths(lab_path):
         return np.array([])
     if os.path.getsize(lab_path):
         truths = np.loadtxt(lab_path)
-        truths = truths.reshape(truths.size/5, 5) # to avoid single truth problem
+        truths = truths.reshape(int(truths.size/5), 5) # to avoid single truth problem
         return truths
     else:
         return np.array([])
@@ -393,7 +397,7 @@ def file_lines(thefilepath):
         buffer = thefile.read(8192*1024)
         if not buffer:
             break
-        count += buffer.count('\n')
+        count += buffer.count(b'\n')
     thefile.close( )
     return count
 

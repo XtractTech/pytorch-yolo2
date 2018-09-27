@@ -23,7 +23,7 @@ from cfg import parse_cfg
 from region_loss import RegionLoss
 from darknet import Darknet
 from models.tiny_yolo import TinyYoloNet
-
+import config as cf
 
 # Training settings
 datacfg       = sys.argv[1]
@@ -50,11 +50,11 @@ steps         = [float(step) for step in net_options['steps'].split(',')]
 scales        = [float(scale) for scale in net_options['scales'].split(',')]
 
 #Train parameters
-max_epochs    = max_batches*batch_size/nsamples+1
+max_epochs    = (max_batches*batch_size//nsamples+1)
 use_cuda      = True
 seed          = int(time.time())
 eps           = 1e-5
-save_interval = 10  # epoches
+save_interval = 1  # epoches
 dot_interval  = 70  # batches
 
 # Test parameters
@@ -71,18 +71,27 @@ if use_cuda:
     os.environ['CUDA_VISIBLE_DEVICES'] = gpus
     torch.cuda.manual_seed(seed)
 
-model       = Darknet(cfgfile)
-region_loss = model.loss
+# model       = Darknet(cfgfile)
+# region_loss = model.loss
 
-model.load_weights(weightfile)
-model.print_network()
+# model.load_weights(weightfile)
+# model.print_network()
+
+########### Finetune ################
+ckpt = '/home/moumita/Documents/YOLO/pytorch-yolo2/backup/000006.weights'
+model = Darknet(cfgfile)
+region_loss = model.loss
+# model.print_network()
+model.load_weights(ckpt)
+
+
 
 region_loss.seen  = model.seen
 processed_batches = model.seen/batch_size
 
 init_width        = model.width
 init_height       = model.height
-init_epoch        = model.seen/nsamples 
+init_epoch        = model.seen//nsamples 
 
 kwargs = {'num_workers': num_workers, 'pin_memory': True} if use_cuda else {}
 test_loader = torch.utils.data.DataLoader(
@@ -141,13 +150,13 @@ def train(epoch):
                        batch_size=batch_size,
                        num_workers=num_workers),
         batch_size=batch_size, shuffle=False, **kwargs)
-
     lr = adjust_learning_rate(optimizer, processed_batches)
     logging('epoch %d, processed %d samples, lr %f' % (epoch, epoch * len(train_loader.dataset), lr))
     model.train()
     t1 = time.time()
     avg_time = torch.zeros(9)
     for batch_idx, (data, target) in enumerate(train_loader):
+        print('%d|%d' %(batch_idx,nsamples//batch_size))
         t2 = time.time()
         adjust_learning_rate(optimizer, processed_batches)
         processed_batches = processed_batches + 1
@@ -166,6 +175,8 @@ def train(epoch):
         t6 = time.time()
         region_loss.seen = region_loss.seen + data.data.size(0)
         loss = region_loss(output, target)
+        if batch_idx%10==0:
+            print('Loss %f' %loss.data)
         t7 = time.time()
         loss.backward()
         t8 = time.time()
@@ -192,19 +203,19 @@ def train(epoch):
             print('            step : %f' % (avg_time[7]/(batch_idx)))
             print('           total : %f' % (avg_time[8]/(batch_idx)))
         t1 = time.time()
-    print('')
     t1 = time.time()
-    logging('training with %f samples/s' % (len(train_loader.dataset)/(t1-t0)))
+    # logging('training with %f samples/s' % (len(train_loader.dataset)/(t1-t0)))
     if (epoch+1) % save_interval == 0:
         logging('save weights to %s/%06d.weights' % (backupdir, epoch+1))
         cur_model.seen = (epoch + 1) * len(train_loader.dataset)
         cur_model.save_weights('%s/%06d.weights' % (backupdir, epoch+1))
 
+def truths_length(truths):
+    for i in range(50):
+        if truths[i][1] == 0:
+            return i
 def test(epoch):
-    def truths_length(truths):
-        for i in range(50):
-            if truths[i][1] == 0:
-                return i
+    
 
     model.eval()
     if ngpus > 1:
@@ -219,6 +230,7 @@ def test(epoch):
     correct     = 0.0
 
     for batch_idx, (data, target) in enumerate(test_loader):
+        print('%d|%d' %(batch_idx,file_lines(testlist)//batch_size))
         if use_cuda:
             data = data.cuda()
         data = Variable(data, volatile=True)
@@ -229,29 +241,72 @@ def test(epoch):
             boxes = nms(boxes, nms_thresh)
             truths = target[i].view(-1, 5)
             num_gts = truths_length(truths)
-     
             total = total + num_gts
     
-            for i in range(len(boxes)):
-                if boxes[i][4] > conf_thresh:
+            for j in range(len(boxes)):
+                if boxes[j][4] > conf_thresh:
                     proposals = proposals+1
 
-            for i in range(num_gts):
-                box_gt = [truths[i][1], truths[i][2], truths[i][3], truths[i][4], 1.0, 1.0, truths[i][0]]
+            for j in range(num_gts):
+                box_gt = [truths[j][1], truths[j][2], truths[j][3], truths[j][4], 1.0, 1.0, truths[j][0]]
                 best_iou = 0
                 best_j = -1
-                for j in range(len(boxes)):
-                    iou = bbox_iou(box_gt, boxes[j], x1y1x2y2=False)
+                for k in range(len(boxes)):
+                    iou = bbox_iou(box_gt, boxes[k], x1y1x2y2=False)
                     if iou > best_iou:
-                        best_j = j
+                        best_k = k
                         best_iou = iou
-                if best_iou > iou_thresh and boxes[best_j][6] == box_gt[6]:
+                if best_iou > iou_thresh and boxes[best_k][6] == int(box_gt[6]):
                     correct = correct+1
+                    # print(correct)
 
+                
     precision = 1.0*correct/(proposals+eps)
     recall = 1.0*correct/(total+eps)
     fscore = 2.0*precision*recall/(precision+recall+eps)
-    logging("precision: %f, recall: %f, fscore: %f" % (precision, recall, fscore))
+        # logging("precision: %f, recall: %f, fscore: %f" % (precision, recall, fscore))
+    print("precision: %f, recall: %f, fscore: %f" % (precision, recall, fscore))
+
+def finetune_model(epoch):
+    print("| Loading checkpoint model ...")
+    # assert os.path.isdir('checkpoint'), 'Error: No checkpoint directory found!'
+    # _, file_name = getNetwork(args)
+    # print('| Loading '+file_name+".t7...")
+    # checkpoint = torch.load('./checkpoint/'+dataset_dir+'/'+file_name+'.t7')
+    # checkpoint = torch.load('home/moumita/Documents/defense_proj/FMV/pytorch-yolo2/backup/000005.weights')
+    # model = checkpoint['model']
+    # ckpt = '/home/moumita/Documents/defense_proj/FMV/pytorch-yolo2/backup/000005.weights'
+    # model = Darknet(cfgfile)
+    # # model.print_network()
+    # model.load_weights(ckpt)
+
+    # print("MODEL LOADED!!!!!!!!!!!!!!!")
+    # Freeze some layers (requires_grad=False)
+    # ct = 0
+    # for child in model.models.children():
+        
+    #     print(ct)
+    #     print(child)
+    #     if ct>30:
+    #         for params in child.parameters():
+    #             params.requires_grad = True
+            
+    #     else:
+    #         for params in child.parameters():
+    #             params.requires_grad = False
+    #     ct+=1
+    # To view which layers are frozen:
+    # for child in model.models.children():
+    #     print(child)
+    #     for params in child.parameters():
+    #         print(params.requires_grad)
+    train(epoch)
+    test(epoch)
+    # model.models.num_classes = cf.n_classes
+    # model.fc = nn.Linear(num_ftrs, cf.n_class)
+    # raise Exception()
+    # model_trained = train_model(model, criterion, optimizer, exp_lr_scheduler, num_epochs=cf.num_epochs)
+
 
 evaluate = False
 if evaluate:
@@ -259,5 +314,6 @@ if evaluate:
     test(0)
 else:
     for epoch in range(init_epoch, max_epochs): 
-        train(epoch)
-        test(epoch)
+        # train(epoch)
+        # test(epoch)
+        finetune_model(epoch)
