@@ -56,11 +56,13 @@ seed          = int(time.time())
 eps           = 1e-5
 save_interval = 1  # epoches
 dot_interval  = 70  # batches
+finetune_epoch= 100
 
 # Test parameters
 conf_thresh   = 0.25
 nms_thresh    = 0.4
 iou_thresh    = 0.5
+finetune = True
 
 if not os.path.exists(backupdir):
     os.mkdir(backupdir)
@@ -76,23 +78,22 @@ if use_cuda:
 
 # model.load_weights(weightfile)
 # model.print_network()
-
 ########### Finetune ################
-ckpt = '/home/moumita/Documents/YOLO/pytorch-yolo2/backup/000006.weights'
-model = Darknet(cfgfile)
-region_loss = model.loss
-# model.print_network()
-model.load_weights(ckpt)
 
+if finetune:
+    ckpt = '/home/moumita/Documents/YOLO/pytorch-yolo2/backup/000078.weights'
+    model = Darknet(cfgfile)
+    region_loss = model.loss
+    # model.print_network()
+    model.load_weights(ckpt)
 
-
+    # model.models[30][0] = nn.Conv2d(1024, 40, kernel_size=1, stride=1)
 region_loss.seen  = model.seen
 processed_batches = model.seen/batch_size
 
 init_width        = model.width
 init_height       = model.height
 init_epoch        = model.seen//nsamples 
-
 kwargs = {'num_workers': num_workers, 'pin_memory': True} if use_cuda else {}
 test_loader = torch.utils.data.DataLoader(
     dataset.listDataset(testlist, shape=(init_width, init_height),
@@ -242,78 +243,41 @@ def test(epoch):
             truths = target[i].view(-1, 5)
             num_gts = truths_length(truths)
             total = total + num_gts
-    
             for j in range(len(boxes)):
                 if boxes[j][4] > conf_thresh:
                     proposals = proposals+1
-
             for j in range(num_gts):
                 box_gt = [truths[j][1], truths[j][2], truths[j][3], truths[j][4], 1.0, 1.0, truths[j][0]]
                 best_iou = 0
-                best_j = -1
+                best_k = -1
                 for k in range(len(boxes)):
+
                     iou = bbox_iou(box_gt, boxes[k], x1y1x2y2=False)
                     if iou > best_iou:
                         best_k = k
                         best_iou = iou
+                if len(boxes)>0:
+                    print(np.array(boxes).shape,best_k,iou)
                 if best_iou > iou_thresh and boxes[best_k][6] == int(box_gt[6]):
                     correct = correct+1
-                    # print(correct)
 
-                
     precision = 1.0*correct/(proposals+eps)
     recall = 1.0*correct/(total+eps)
     fscore = 2.0*precision*recall/(precision+recall+eps)
         # logging("precision: %f, recall: %f, fscore: %f" % (precision, recall, fscore))
     print("precision: %f, recall: %f, fscore: %f" % (precision, recall, fscore))
 
-def finetune_model(epoch):
-    print("| Loading checkpoint model ...")
-    # assert os.path.isdir('checkpoint'), 'Error: No checkpoint directory found!'
-    # _, file_name = getNetwork(args)
-    # print('| Loading '+file_name+".t7...")
-    # checkpoint = torch.load('./checkpoint/'+dataset_dir+'/'+file_name+'.t7')
-    # checkpoint = torch.load('home/moumita/Documents/defense_proj/FMV/pytorch-yolo2/backup/000005.weights')
-    # model = checkpoint['model']
-    # ckpt = '/home/moumita/Documents/defense_proj/FMV/pytorch-yolo2/backup/000005.weights'
-    # model = Darknet(cfgfile)
-    # # model.print_network()
-    # model.load_weights(ckpt)
-
-    # print("MODEL LOADED!!!!!!!!!!!!!!!")
-    # Freeze some layers (requires_grad=False)
-    # ct = 0
-    # for child in model.models.children():
-        
-    #     print(ct)
-    #     print(child)
-    #     if ct>30:
-    #         for params in child.parameters():
-    #             params.requires_grad = True
-            
-    #     else:
-    #         for params in child.parameters():
-    #             params.requires_grad = False
-    #     ct+=1
-    # To view which layers are frozen:
-    # for child in model.models.children():
-    #     print(child)
-    #     for params in child.parameters():
-    #         print(params.requires_grad)
-    train(epoch)
-    test(epoch)
-    # model.models.num_classes = cf.n_classes
-    # model.fc = nn.Linear(num_ftrs, cf.n_class)
-    # raise Exception()
-    # model_trained = train_model(model, criterion, optimizer, exp_lr_scheduler, num_epochs=cf.num_epochs)
-
 
 evaluate = False
 if evaluate:
     logging('evaluating ...')
     test(0)
+elif finetune:
+    for epoch in range(finetune_epoch):
+        train(epoch)
+        test(epoch)
 else:
     for epoch in range(init_epoch, max_epochs): 
-        # train(epoch)
-        # test(epoch)
-        finetune_model(epoch)
+        train(epoch)
+        test(epoch)
+        # finetune_model(epoch)

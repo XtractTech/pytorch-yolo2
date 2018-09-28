@@ -11,13 +11,12 @@ def detect(cfgfile, weightfile, imgfile):
     m.print_network()
     m.load_weights(weightfile)
     print('Loading weights from %s... Done!' % (weightfile))
-
     if m.num_classes == 20:
         namesfile = 'data/voc.names'
     elif m.num_classes == 80:
         namesfile = 'data/coco.names'
     else:
-        namesfile = 'data/names'
+        namesfile = '/home/moumita/Documents/YOLO/others/dataset/annotated_vdo/data/obj.names'
     
     use_cuda = 1
     if use_cuda:

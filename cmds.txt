@@ -3,4 +3,4 @@ python3 train.py cfg/voc.data cfg/yolo-voc.cfg darknet19_448.conv.23
 # train/finetune on drone
 python3 train.py cfg/drone.data cfg/yolo-drone.cfg darknet19_448.conv.23
 # inference with pretrained model
-python3 detect.py cfg/yolo-voc.cfg /home/moumita/Documents/defense_proj/FMV/pytorch-yolo2/backup/000005.weights /home/moumita/Documents/defense_proj/FMV/pytorch-yolo2/data/person.jpg
+python3 detect.py cfg/yolo-voc.cfg /home/moumita/Documents/YOLO/pytorch-yolo2/backup/000078.weights /home/moumita/Documents/YOLO/others/dataset/annotated_vdo/data/obj/yt_RiDHgoYv10w_frame_22.jpg
