@@ -243,29 +243,35 @@ class Darknet(nn.Module):
     
         return models
 
-    def load_weights(self, weightfile):
+    def load_weights(self, weightfile,finetune=False):
         fp = open(weightfile, 'rb')
         header = np.fromfile(fp, count=4, dtype=np.int32)
         self.header = torch.from_numpy(header)
         self.seen = self.header[3]
         buf = np.fromfile(fp, dtype = np.float32)
         fp.close()
-
         start = 0
         ind = -2
+        conv_count = 0
         for block in self.blocks:
             if start >= buf.size:
                 break
             ind = ind + 1
             if block['type'] == 'net':
                 continue
-            elif block['type'] == 'convolutional':
+            elif ((block['type'] == 'convolutional')):
+                
+                conv_count+=1   
                 model = self.models[ind]
                 batch_normalize = int(block['batch_normalize'])
-                if batch_normalize:
-                    start = load_conv_bn(buf, start, model[0], model[1])
+                if (conv_count==23 and finetune==True):
+                    model[0] = nn.Conv2d(1024, 40, kernel_size=1, stride=1)
+                    start = buf.size+1
                 else:
-                    start = load_conv(buf, start, model[0])
+                    if batch_normalize:
+                        start = load_conv_bn(buf, start, model[0], model[1])
+                    else:
+                        start = load_conv(buf, start, model[0])
             elif block['type'] == 'connected':
                 model = self.models[ind]
                 if block['activation'] != 'linear':

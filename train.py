@@ -85,9 +85,10 @@ if finetune:
     model = Darknet(cfgfile)
     region_loss = model.loss
     # model.print_network()
-    model.load_weights(ckpt)
-
-    # model.models[30][0] = nn.Conv2d(1024, 40, kernel_size=1, stride=1)
+    model.load_weights(ckpt,finetune)
+else:
+    model = Darknet(cfgfile)
+    region_loss = model.loss
 region_loss.seen  = model.seen
 processed_batches = model.seen/batch_size
 
