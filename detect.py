@@ -16,7 +16,7 @@ def detect(cfgfile, weightfile, imgfile):
     elif m.num_classes == 80:
         namesfile = 'data/coco.names'
     else:
-        namesfile = '/home/moumita/Documents/YOLO/others/dataset/annotated_vdo/data/obj.names'
+        namesfile = '/home/moumita/Documents/YOLO/others/dataset/annotated_vdos_merged/data/obj.names'
     
     use_cuda = 1
     if use_cuda:
@@ -27,7 +27,7 @@ def detect(cfgfile, weightfile, imgfile):
     
     for i in range(2):
         start = time.time()
-        boxes = do_detect(m, sized, 0.4, 0.4, use_cuda)
+        boxes = do_detect(m, sized, 0.5, 0.4, use_cuda)
         finish = time.time()
         if i == 1:
             print('%s: Predicted in %f seconds.' % (imgfile, (finish-start)))
@@ -93,7 +93,7 @@ def detect_skimage(cfgfile, weightfile, imgfile):
     
     for i in range(2):
         start = time.time()
-        boxes = do_detect(m, sized, 0.5, 0.4, use_cuda)
+        boxes = do_detect(m, sized, 0.9, 0.9, use_cuda)
         finish = time.time()
         if i == 1:
             print('%s: Predicted in %f seconds.' % (imgfile, (finish-start)))

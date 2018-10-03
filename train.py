@@ -56,14 +56,15 @@ seed          = int(time.time())
 eps           = 1e-5
 save_interval = 1  # epoches
 dot_interval  = 70  # batches
-finetune_epoch= 100
+finetune_epoch= 1000
 
 # Test parameters
 conf_thresh   = 0.25
 nms_thresh    = 0.4
 iou_thresh    = 0.5
 finetune = True
-
+evaluate = False
+best_acc = 0.0
 if not os.path.exists(backupdir):
     os.mkdir(backupdir)
     
@@ -82,9 +83,16 @@ if use_cuda:
 
 if finetune:
     ckpt = '/home/moumita/Documents/YOLO/pytorch-yolo2/backup/000078.weights'
+    # ckpt = '/home/moumita/Documents/YOLO/pytorch-yolo2/weights/yolo.weights'
     model = Darknet(cfgfile)
+    # raise Exception(model)
     region_loss = model.loss
     # model.print_network()
+    model.load_weights(ckpt,finetune)
+elif evaluate:
+    ckpt = '/home/moumita/Documents/YOLO/pytorch-yolo2/backup/000078.weights'
+    model = Darknet(cfgfile)
+    region_loss = model.loss
     model.load_weights(ckpt,finetune)
 else:
     model = Darknet(cfgfile)
@@ -133,9 +141,68 @@ def adjust_learning_rate(optimizer, batch):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr/batch_size
     return lr
+def truths_length(truths):
+    for i in range(50):
+        if truths[i][1] == 0:
+            return i
+def test(epoch):
+    
 
+    model.eval()
+    if ngpus > 1:
+        cur_model = model.module
+    else:
+        cur_model = model
+    num_classes = cur_model.num_classes
+    anchors     = cur_model.anchors
+    num_anchors = cur_model.num_anchors
+    total       = 0.0
+    proposals   = 0.0
+    correct     = 0.0
+
+    for batch_idx, (data, target) in enumerate(test_loader):
+        print('%d|%d' %(batch_idx,file_lines(testlist)//batch_size))
+        if use_cuda:
+            data = data.cuda()
+        data = Variable(data, volatile=True)
+        output = model(data).data
+        all_boxes = get_region_boxes(output, conf_thresh, num_classes, anchors, num_anchors)
+        for i in range(output.size(0)):
+            print(i)
+            boxes = all_boxes[i]
+            boxes = nms(boxes, nms_thresh)
+            truths = target[i].view(-1, 5)
+            num_gts = truths_length(truths)
+            total = total + num_gts
+            for j in range(len(boxes)):
+                if boxes[j][4] > conf_thresh:
+                    proposals = proposals+1
+            for j in range(num_gts):
+                box_gt = [truths[j][1], truths[j][2], truths[j][3], truths[j][4], 1.0, 1.0, truths[j][0]]
+                best_iou = 0
+                best_k = -1
+                for k in range(len(boxes)):
+
+                    iou = bbox_iou(box_gt, boxes[k], x1y1x2y2=False)
+                    if iou > best_iou:
+                        best_k = k
+                        best_iou = iou
+                if len(boxes)>0:
+                    print(np.array(boxes).shape,best_k,iou)
+                    print(boxes[best_k][6],int(box_gt[6]))
+
+                if best_iou > iou_thresh and boxes[best_k][6] == int(box_gt[6]):
+                    correct = correct+1
+
+    precision = 1.0*correct/(proposals+eps)
+    recall = 1.0*correct/(total+eps)
+    fscore = 2.0*precision*recall/(precision+recall+eps)
+        # logging("precision: %f, recall: %f, fscore: %f" % (precision, recall, fscore))
+    print("precision: %f, recall: %f, fscore: %f" % (precision, recall, fscore))
+    return recall
 def train(epoch):
     global processed_batches
+    global best_acc
     t0 = time.time()
     if ngpus > 1:
         cur_model = model.module
@@ -177,8 +244,8 @@ def train(epoch):
         t6 = time.time()
         region_loss.seen = region_loss.seen + data.data.size(0)
         loss = region_loss(output, target)
-        if batch_idx%10==0:
-            print('Loss %f' %loss.data)
+        # if batch_idx%10==0:
+        #     print('Loss %f' %loss.data)
         t7 = time.time()
         loss.backward()
         t8 = time.time()
@@ -207,78 +274,26 @@ def train(epoch):
         t1 = time.time()
     t1 = time.time()
     # logging('training with %f samples/s' % (len(train_loader.dataset)/(t1-t0)))
-    if (epoch+1) % save_interval == 0:
-        logging('save weights to %s/%06d.weights' % (backupdir, epoch+1))
+    # if (epoch+1) % save_interval == 0:
+    epoch_acc = test(epoch)
+    if epoch_acc>best_acc: 
+        best_acc = epoch_acc
+        logging('save weights to %s/best.weights' % (backupdir))
         cur_model.seen = (epoch + 1) * len(train_loader.dataset)
-        cur_model.save_weights('%s/%06d.weights' % (backupdir, epoch+1))
-
-def truths_length(truths):
-    for i in range(50):
-        if truths[i][1] == 0:
-            return i
-def test(epoch):
-    
-
-    model.eval()
-    if ngpus > 1:
-        cur_model = model.module
-    else:
-        cur_model = model
-    num_classes = cur_model.num_classes
-    anchors     = cur_model.anchors
-    num_anchors = cur_model.num_anchors
-    total       = 0.0
-    proposals   = 0.0
-    correct     = 0.0
-
-    for batch_idx, (data, target) in enumerate(test_loader):
-        print('%d|%d' %(batch_idx,file_lines(testlist)//batch_size))
-        if use_cuda:
-            data = data.cuda()
-        data = Variable(data, volatile=True)
-        output = model(data).data
-        all_boxes = get_region_boxes(output, conf_thresh, num_classes, anchors, num_anchors)
-        for i in range(output.size(0)):
-            boxes = all_boxes[i]
-            boxes = nms(boxes, nms_thresh)
-            truths = target[i].view(-1, 5)
-            num_gts = truths_length(truths)
-            total = total + num_gts
-            for j in range(len(boxes)):
-                if boxes[j][4] > conf_thresh:
-                    proposals = proposals+1
-            for j in range(num_gts):
-                box_gt = [truths[j][1], truths[j][2], truths[j][3], truths[j][4], 1.0, 1.0, truths[j][0]]
-                best_iou = 0
-                best_k = -1
-                for k in range(len(boxes)):
-
-                    iou = bbox_iou(box_gt, boxes[k], x1y1x2y2=False)
-                    if iou > best_iou:
-                        best_k = k
-                        best_iou = iou
-                if len(boxes)>0:
-                    print(np.array(boxes).shape,best_k,iou)
-                if best_iou > iou_thresh and boxes[best_k][6] == int(box_gt[6]):
-                    correct = correct+1
-
-    precision = 1.0*correct/(proposals+eps)
-    recall = 1.0*correct/(total+eps)
-    fscore = 2.0*precision*recall/(precision+recall+eps)
-        # logging("precision: %f, recall: %f, fscore: %f" % (precision, recall, fscore))
-    print("precision: %f, recall: %f, fscore: %f" % (precision, recall, fscore))
+        cur_model.save_weights('%s/best.weights' % (backupdir))
 
 
-evaluate = False
+
+
 if evaluate:
     logging('evaluating ...')
     test(0)
 elif finetune:
     for epoch in range(finetune_epoch):
         train(epoch)
-        test(epoch)
+        
 else:
-    for epoch in range(init_epoch, max_epochs): 
+    for epoch in range(finetune_epoch): 
         train(epoch)
-        test(epoch)
+        # test(epoch)
         # finetune_model(epoch)

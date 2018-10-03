@@ -89,7 +89,7 @@ class Darknet(nn.Module):
                 continue
             elif block['type'] == 'convolutional' or block['type'] == 'maxpool' or block['type'] == 'reorg' or block['type'] == 'avgpool' or block['type'] == 'softmax' or block['type'] == 'connected':
                 x = self.models[ind](x)                
-
+                # print(x.shape)
                 outputs[ind] = x
             elif block['type'] == 'route':
                 layers = block['layers'].split(',')
@@ -254,6 +254,7 @@ class Darknet(nn.Module):
         ind = -2
         conv_count = 0
         for block in self.blocks:
+            
             if start >= buf.size:
                 break
             ind = ind + 1
@@ -264,8 +265,9 @@ class Darknet(nn.Module):
                 conv_count+=1   
                 model = self.models[ind]
                 batch_normalize = int(block['batch_normalize'])
+                # print(model[0])
                 if (conv_count==23 and finetune==True):
-                    model[0] = nn.Conv2d(1024, 40, kernel_size=1, stride=1)
+                    model[0] = nn.Conv2d(1024, 35, kernel_size=1, stride=1)
                     start = buf.size+1
                 else:
                     if batch_normalize:
@@ -274,6 +276,7 @@ class Darknet(nn.Module):
                         start = load_conv(buf, start, model[0])
             elif block['type'] == 'connected':
                 model = self.models[ind]
+                print(model[0])
                 if block['activation'] != 'linear':
                     start = load_fc(buf, start, model[0])
                 else:
@@ -296,7 +299,6 @@ class Darknet(nn.Module):
                 pass
             else:
                 print('unknown type %s' % (block['type']))
-
     def save_weights(self, outfile, cutoff=0):
         if cutoff <= 0:
             cutoff = len(self.blocks)-1

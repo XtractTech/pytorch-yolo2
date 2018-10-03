@@ -1,5 +1,5 @@
-train  = /home/moumita/Documents/YOLO/others/dataset/annotated_vdo/data/train.txt
-valid  = /home/moumita/Documents/YOLO/others/dataset/annotated_vdo/data/test.txt
-names = /home/moumita/Documents/YOLO/others/dataset/annotated_vdo/data/obj.names
+train  = /home/moumita/Documents/YOLO/others/dataset/annotated_vdos_merged/data/train_clean.txt
+valid  = /home/moumita/Documents/YOLO/others/dataset/annotated_vdos_merged/data/test_clean.txt
+names = /home/moumita/Documents/YOLO/others/dataset/annotated_vdos_merged/data/obj.names
 backup = backup_drone
 gpus  = 0
