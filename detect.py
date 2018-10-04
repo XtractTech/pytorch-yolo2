@@ -6,6 +6,9 @@ from utils import *
 from darknet import Darknet
 
 def detect(cfgfile, weightfile, imgfile):
+    save_dir = '/home/moumita/Documents/YOLO/pytorch-yolo2/predictions/'
+    save_img_name = imgfile.split('/')[-1]
+    save_file = save_dir+save_img_name
     m = Darknet(cfgfile)
 
     m.print_network()
@@ -27,13 +30,13 @@ def detect(cfgfile, weightfile, imgfile):
     
     for i in range(2):
         start = time.time()
-        boxes = do_detect(m, sized, 0.5, 0.4, use_cuda)
+        boxes = do_detect(m, sized, 0.25, 0.4, use_cuda)
         finish = time.time()
         if i == 1:
             print('%s: Predicted in %f seconds.' % (imgfile, (finish-start)))
 
     class_names = load_class_names(namesfile)
-    plot_boxes(img, boxes, 'predictions.jpg', class_names)
+    plot_boxes(img, boxes, save_file, class_names)
 
 def detect_cv2(cfgfile, weightfile, imgfile):
     import cv2
@@ -105,11 +108,17 @@ def detect_skimage(cfgfile, weightfile, imgfile):
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 4:
+    if len(sys.argv) == 3:
         cfgfile = sys.argv[1]
         weightfile = sys.argv[2]
-        imgfile = sys.argv[3]
-        detect(cfgfile, weightfile, imgfile)
+        all_lines = open('/home/moumita/Documents/YOLO/others/dataset/annotated_vdos_merged/data/test_clean.txt').readlines()
+        for line in all_lines:
+            imgfile = line.replace('\n','')
+            detect(cfgfile, weightfile, imgfile)
+
+
+        # imgfile = sys.argv[3]
+        # detect(cfgfile, weightfile, imgfile)
         #detect_cv2(cfgfile, weightfile, imgfile)
         #detect_skimage(cfgfile, weightfile, imgfile)
     else:

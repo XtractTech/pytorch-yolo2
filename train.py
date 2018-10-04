@@ -56,7 +56,7 @@ seed          = int(time.time())
 eps           = 1e-5
 save_interval = 1  # epoches
 dot_interval  = 70  # batches
-finetune_epoch= 1000
+finetune_epoch= 10000
 
 # Test parameters
 conf_thresh   = 0.25

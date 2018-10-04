@@ -9,3 +9,4 @@ backup/
 weights/
 VOCdevkit/
 backup_drone/
+predictions/
