@@ -7,6 +7,7 @@ c = 0
 c2 = 0
 for line in lines:
     all_lines.append(line.replace('jpg','txt').replace('\n',''))
+    
     try:
         tmp = (open(all_lines[c]).readline())
         # print(tmp)
@@ -14,7 +15,8 @@ for line in lines:
         new_file.write(valid_lines[c2]+'\n')
         c2+=1
     except:
+        print(line)
         miss+=1
-        # print(miss)
+        print(miss)
     c+=1
 # new_file.close()

@@ -24,6 +24,8 @@ from region_loss import RegionLoss
 from darknet import Darknet
 from models.tiny_yolo import TinyYoloNet
 import config as cf
+# Tensorboard
+# from tensorboardX import SummaryWriter
 
 # Training settings
 datacfg       = sys.argv[1]
@@ -67,6 +69,15 @@ evaluate = False
 best_acc = 0.0
 if not os.path.exists(backupdir):
     os.mkdir(backupdir)
+
+## Tensorboard
+# log_dir_prefix = "./log"
+# sec = str(int(time.time()))[-2:]
+# log_dir = os.path.join(log_dir_prefix, args.net_type +
+#                 time.strftime("_%b_%d_%H_%M", time.localtime()) + "_" + sec)
+# if not os.path.isdir(log_dir):
+#     os.makedirs(log_dir)
+# summary_writer = SummaryWriter(log_dir) 
     
 ###############
 torch.manual_seed(seed)
@@ -273,6 +284,9 @@ def train(epoch):
             print('           total : %f' % (avg_time[8]/(batch_idx)))
         t1 = time.time()
     t1 = time.time()
+    # Tensorboard
+    # summary_writer.add_scalar('Epoch Train Acc', recall)
+
     # logging('training with %f samples/s' % (len(train_loader.dataset)/(t1-t0)))
     # if (epoch+1) % save_interval == 0:
     epoch_acc = test(epoch)
